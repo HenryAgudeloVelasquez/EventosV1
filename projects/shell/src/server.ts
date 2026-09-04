@@ -15,6 +15,29 @@ const angularApp = new AngularNodeAppEngine({
   allowedHosts: ['localhost', '127.0.0.1'],
 });
 
+const mfeEventsDist = join(
+  import.meta.dirname,
+  '../../mfe-events/browser',
+);
+const mfeBookingDist = join(
+  import.meta.dirname,
+  '../../mfe-booking/browser',
+);
+
+/**
+ * Enable CORS for microfrontends and remote assets
+ */
+app.use((req, res, next) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', '*');
+  if (req.method === 'OPTIONS') {
+    res.sendStatus(204);
+    return;
+  }
+  next();
+});
+
 /**
  * Serve static files from /browser
  */
@@ -25,6 +48,17 @@ app.use(
     redirect: false,
   }),
 );
+
+/**
+ * Serve microfrontends directly under /mfe-events and /mfe-booking
+ * for environments where secondary ports are blocked (e.g., standard IIS hosting)
+ */
+if (existsSync(mfeEventsDist)) {
+  app.use('/mfe-events', express.static(mfeEventsDist, { maxAge: '1y' }));
+}
+if (existsSync(mfeBookingDist)) {
+  app.use('/mfe-booking', express.static(mfeBookingDist, { maxAge: '1y' }));
+}
 
 /**
  * Handle all other requests by rendering the Angular application.
@@ -82,11 +116,17 @@ function startMicrofrontendServer(
 }
 
 /**
- * Start the server if this module is the main entry point, or it is ran via PM2.
+ * Start the server if this module is the main entry point, or running under IIS/IISNode/httpPlatformHandler/PM2.
  * The server listens on the port defined by the `PORT` environment variable, or defaults to 4000.
  */
-if (isMainModule(import.meta.url) || process.env['pm_id']) {
-  const port = process.env['PORT'] || 4000;
+const isRunningInHosting = !!(
+  process.env['APP_POOL_ID'] ||
+  process.env['IISNODE_VERSION'] ||
+  process.env['HTTP_PLATFORM_PORT']
+);
+
+if (isMainModule(import.meta.url) || process.env['pm_id'] || isRunningInHosting) {
+  const port = process.env['PORT'] || process.env['HTTP_PLATFORM_PORT'] || 4000;
   app.listen(port, (error?: any) => {
     if (error) {
       throw error;
@@ -95,15 +135,6 @@ if (isMainModule(import.meta.url) || process.env['pm_id']) {
     console.log(`Node Express server listening on http://localhost:${port}`);
 
     // Auto-host microfrontends if compiled bundles are present in dist/
-    const mfeEventsDist = join(
-      import.meta.dirname,
-      '../../mfe-events/browser',
-    );
-    const mfeBookingDist = join(
-      import.meta.dirname,
-      '../../mfe-booking/browser',
-    );
-
     startMicrofrontendServer(4201, mfeEventsDist, 'mfe-events');
     startMicrofrontendServer(4202, mfeBookingDist, 'mfe-booking');
   });
