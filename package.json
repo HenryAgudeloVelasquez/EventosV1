@@ -14,6 +14,7 @@
     "build:shared": "ng build shared-kernel",
     "link:shared": "node -e \"const fs=require('fs'), p=require('path'); if(!fs.existsSync('node_modules/shared-kernel')) fs.symlinkSync(p.resolve('dist/shared-kernel'), p.resolve('node_modules/shared-kernel'), 'junction');\"",
     "build:all": "ng build shared-kernel && npm run link:shared && ng build mfe-events && ng build mfe-booking && ng build shell",
+    "serve:ssr": "node dist/shell/server/server.mjs",
     "serve:ssr:shell": "node dist/shell/server/server.mjs",
     "watch": "ng build --watch --configuration development",
     "test": "ng test"

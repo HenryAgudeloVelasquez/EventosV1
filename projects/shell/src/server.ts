@@ -12,7 +12,7 @@ const browserDistFolder = join(import.meta.dirname, '../browser');
 
 const app = express();
 const angularApp = new AngularNodeAppEngine({
-  allowedHosts: ['localhost', '127.0.0.1'],
+  allowedHosts: ['*'],
 });
 
 const mfeEventsDist = join(
@@ -126,18 +126,25 @@ const isRunningInHosting = !!(
 );
 
 if (isMainModule(import.meta.url) || process.env['pm_id'] || isRunningInHosting) {
-  const port = process.env['PORT'] || process.env['HTTP_PLATFORM_PORT'] || 4000;
-  app.listen(port, (error?: any) => {
-    if (error) {
-      throw error;
-    }
+  const rawPort = process.env['HTTP_PLATFORM_PORT'] || process.env['PORT'] || 4000;
+  const isPipe = typeof rawPort === 'string' && rawPort.startsWith('\\\\.\\pipe\\');
 
-    console.log(`Node Express server listening on http://localhost:${port}`);
+  if (isPipe) {
+    app.listen(rawPort, () => {
+      console.log(`Node Express server listening on pipe ${rawPort}`);
+    });
+  } else {
+    const port = Number(rawPort);
+    app.listen(port, '0.0.0.0', () => {
+      console.log(`Node Express server listening on http://0.0.0.0:${port}`);
+    });
+  }
 
-    // Auto-host microfrontends if compiled bundles are present in dist/
+  // Only start auxiliary port listeners in local development
+  if (!isRunningInHosting) {
     startMicrofrontendServer(4201, mfeEventsDist, 'mfe-events');
     startMicrofrontendServer(4202, mfeBookingDist, 'mfe-booking');
-  });
+  }
 }
 
 /**
